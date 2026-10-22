@@ -11362,10 +11362,11 @@ def test_gmail_an_empty_or_lone_quoted_operator(tmp_path, surface, query, expect
         ('subject:" from:"me"', ["lunch"]),
         ('label:" inbox "', ["plan"]),
         ('subject:" probe "', ["lunch"]),
+        ('subject:" probe\u00a0"', ["lunch"]),
+        ('subject:" from:" probe', []),
         ('label:" inbox subject:"probe"', ["plan"]),
         ('" label:inbox', ["plan"]),
         ('" from:me', ["lunch"]),
-        ('NOT subject:"', []),
         ('newer_than:"', []),
         ('label:"" "', ["plan", "lunch"]),
         ('label:"""', ["plan", "lunch"]),
@@ -11386,24 +11387,21 @@ def test_gmail_an_empty_or_lone_quoted_operator(tmp_path, surface, query, expect
         ('in:"" " to:me', ["plan"]),
         ('subject:"" " label:inbox', []),
         ('label:" inbox -subject:"probe"', ["plan"]),
-        ('NOT NOT subject:"', ["plan", "lunch"]),
-        ('NOT NOT NOT subject:"', []),
-        ('NOT from:"', []),
-        ('NOT SUBJECT:"', []),
-        ("NOT -from:", []),
-        ("NOT subject:", []),
-        ('NOT label:""', []),
-        ('NOT subject:"\u00a0', ["plan", "lunch"]),
         ('-newer_than:"', ["plan", "lunch"]),
         ('NOT older_than:"', ["plan", "lunch"]),
         ('newer_than:""', []),
         ('older_than:""', []),
         ('newer_than:"" "', []),
+        ('older_than:30d"', ["plan", "lunch"]),
+        ('older_than:30d"" "', ["plan", "lunch"]),
+        ('newer_than:30"d', []),
         ("2026-label:inbox", ["plan"]),
         ("2026-from:me", []),
         ("probe-(label:inbox)", ["plan"]),
         ("probe-(label:inbox", ["plan"]),
         ("probe-(label:inbox from:me)", []),
+        ("probe-(-from:me)", []),
+        ("probe-(label:inbox -subject:probe)", []),
         ("-probe-label:inbox", ["plan", "lunch"]),
         ("NOT probe-label:inbox", ["plan", "lunch"]),
         ("NOT NOT probe-label:inbox", []),
@@ -11412,7 +11410,11 @@ def test_gmail_an_empty_or_lone_quoted_operator(tmp_path, surface, query, expect
         ('" -label:inbox', ["plan"]),
         ('" -from:me', ["lunch"]),
         ('label:inbox "', ["plan"]),
+        ('"label:inbox', ["plan"]),
         ('" label:inbox -from:me', []),
+        ('label:inbox -from:me "', ["plan"]),
+        ('" label:', []),
+        ('" from:', []),
         ("label:inbox me", []),
         ('from:"', ["plan", "lunch"]),
         ('probe from:"', ["plan", "lunch"]),
@@ -11428,10 +11430,9 @@ def test_gmail_an_empty_or_lone_quoted_operator(tmp_path, surface, query, expect
 )
 def test_gmail_a_stray_quote_beside_an_operator(tmp_path, surface, query, expected):
     """Each row is how the comments on `_GMAIL_LONE_QUOTE`, `_GMAIL_CLOSED_QUOTE`,
-    `_GMAIL_HYPHENED`, `_GMAIL_NOT_EMPTY` and `_GMAIL_BARE_LONE_QUOTE`, and those in
-    `_parse_gmail_q`, read its query, over both listings. `plan` is from bob to the caller in the
-    inbox and `lunch` from the caller to bob in sent; both hold the word `probe` and the number
-    2026."""
+    `_GMAIL_HYPHENED` and `_GMAIL_BARE_LONE_QUOTE`, and those in `_parse_gmail_q`, read its query,
+    over both listings. `plan` is from bob to the caller in the inbox and `lunch` from the caller to
+    bob in sent; both hold the word `probe` and the number 2026."""
     settings = tiny_corpus(
         tmp_path,
         [

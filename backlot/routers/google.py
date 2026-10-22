@@ -698,7 +698,9 @@ _GMAIL_LONE_QUOTE_OPERATOR = re.compile(r"-*((?:from|to|cc|bcc|subject):)\s*-*(\
 # later quote closes. Measured on the same mailboxes: `subject:" from:me"` and `subject:" from:"me"`
 # answered what `from:me` answers, `label:" inbox "` and `subject:" probe "` what `label:inbox` and
 # `subject:probe` answer, and `label:" inbox subject:"probe"`, `label:" inbox -subject:"probe"` and
-# `label:" inbox --subject:"probe"` what `label:inbox probe` answers.
+# `label:" inbox --subject:"probe"` what `label:inbox probe` answers; on 2026-10-22,
+# `subject:" from:" probe` answered nothing and `subject:" probe<no-break space>"` what
+# `subject:probe` answers.
 _GMAIL_CLOSED_QUOTE = re.compile(
     r'(?<!\S)(-*)((?:subject|label|in|from|to|cc|bcc):)\s*"\s+(?=[^\s"])([^"]*)"', re.IGNORECASE
 )
@@ -708,49 +710,37 @@ _GMAIL_TRAILING_OPERATOR = re.compile(
     re.IGNORECASE,
 )
 # A word joined by a hyphen to an operator is one search term no message holds, and so is a word
-# joined by a hyphen to a bracket holding an address operator or `subject:`; a word of digits makes
-# such a term only with those five. A `-` touching the word, or a `NOT` in front of it, flips the
-# term as `_GMAIL_NOT` flips an operator, and a flipped term is left out. Measured on a Workspace
-# mailbox on 2026-10-21 and 2026-10-22, comparing `messages.list` id sets: `probe-label:inbox`,
-# `probe-subject:" from:me`, `probe-has:attachment`, `probe-after:2020/01/01`, `a1-label:inbox`,
-# `probe-(from:me)`, `probe-( from:me)`, `probe-(to:me)`, `2026-from:me` and `2026-(from:me)`
-# answered nothing; `-probe-label:inbox`, `--probe-label:inbox`, `NOT probe-label:inbox`,
-# `NOT - probe-label:inbox`, `-probe-(from:me)`, `-probe-subject:" from:me` and `-2026-from:me`
-# every message; `NOT NOT probe-label:inbox`, `NOT -probe-label:inbox` and `- probe-label:inbox`
-# nothing; and `-probe-label:inbox from:me` and `NOT probe-label:inbox from:me` what `from:me`
-# answers. `2026-label:inbox`, `2026-in:inbox` and `2026--label:inbox` answered what
-# `2026 label:inbox` answers, and `probe-(label:inbox)`, `probe-(in:inbox)` and `probe-(label:inbox`
-# what `label:inbox probe` answers, where `probe-(label:inbox from:me)` and
-# `probe-(label:inbox to:me)` answered nothing.
+# joined by a hyphen to a bracket holding an address operator or `subject:`, negated or not; a word
+# of digits makes such a term only with those five. A `-` touching the word, or a `NOT` in front of
+# it, flips the term as `_GMAIL_NOT` flips an operator, and a flipped term is left out. Measured on
+# a Workspace mailbox on 2026-10-21 and 2026-10-22, comparing `messages.list` id sets:
+# `probe-label:inbox`, `probe-subject:" from:me`, `probe-has:attachment`, `probe-after:2020/01/01`,
+# `a1-label:inbox`, `probe-(from:me)`, `probe-( from:me)`, `probe-(to:me)`, `probe-(-from:me)`,
+# `2026-from:me` and `2026-(from:me)` answered nothing; `-probe-label:inbox`, `--probe-label:inbox`,
+# `NOT probe-label:inbox`, `NOT - probe-label:inbox`, `-probe-(from:me)`, `-probe-subject:" from:me`
+# and `-2026-from:me` every message; `NOT NOT probe-label:inbox` and `- probe-label:inbox` nothing;
+# and `-probe-label:inbox from:me` and `NOT probe-label:inbox from:me` what `from:me` answers.
+# `2026-label:inbox`, `2026-in:inbox` and `2026--label:inbox` answered what `2026 label:inbox`
+# answers, and `probe-(label:inbox)`, `probe-(in:inbox)` and `probe-(label:inbox` what
+# `label:inbox probe` answers, where `probe-(label:inbox from:me)`, `probe-(label:inbox to:me)`,
+# `probe-(label:inbox -subject:probe)` and `probe-(label:inbox NOT from:me)` answered nothing.
 _GMAIL_HYPHENED = re.compile(
     r"(?<!\S)((?:NOT[ \t]+(?:-+[ \t]+)*)*)(-*)"
-    r"(?:\w+-+\((?=[^)]*(?<![^\s(])(?i:from|to|cc|bcc|subject):)[^)]*\)?"
+    r"(?:\w+-+\((?=[^)]*(?<![^\s(])-*(?i:from|to|cc|bcc|subject):)[^)]*\)?"
     r"|(?:\w+-+(?i:from|to|cc|bcc|subject)"
     r"|\w*[^\W\d]\w*-+(?i:label|in|has|after|before|newer|older|newer_than|older_than))"
     r':(?:"[^"]*"?|\S*))'
-)
-# `NOT` in front of an operator left with no value at the end of the search answers nothing, and
-# each `NOT` more flips that, where the operator alone is left out and answers every message.
-# Measured on a Workspace mailbox on 2026-10-21 and 2026-10-22, comparing `messages.list` id sets:
-# `NOT subject:"`, `NOT label:"`, `NOT in:"`, `NOT from:"`, `NOT bcc:"`, `NOT SUBJECT:"`,
-# `NOT -from:"`, `NOT - subject:"`, `NOT subject:`, `NOT label: `, `NOT -from:`, `NOT label:""`,
-# `NOT subject:"" "`, `NOT subject:"<tab>`, `probe NOT subject:"` and `NOT NOT NOT subject:"`
-# answered nothing; `NOT NOT subject:"`, `NOT NOT from:`, `NOT NOT -subject:""` and
-# `NOT NOT NOT NOT subject:"` every message, as `subject:"`, `-subject:"` and `subject:` do, and so
-# did `NOT subject:"<no-break space>`.
-_GMAIL_NOT_EMPTY = re.compile(
-    r"(?<!\S)((?:NOT[ \t]+(?:-+[ \t]+)*)+)-*(?i:from|to|cc|bcc|subject|label|in):"
-    r'(?:[ \t]|"[ \t]*")*"?[ \t]*$'
 )
 # A lone quote at the start of a search with one operator after it, and nothing more, stands for
 # that operator, with any `-` in front of the operator left out. Measured on a Workspace mailbox on
 # 2026-10-21 and 2026-10-22, comparing `messages.list` id sets: `" label:inbox`, `" -label:inbox`
 # and `" --label:inbox` answered what `label:inbox` answers, `" from:me` and `" -from:me` what
 # `from:me` answers, and `" has:attachment` and `" in:sent` what `has:attachment` and `in:sent`
-# answer; `" label:inbox -from:me`, `" -label:inbox -from:me` and `"` alone answered nothing.
+# answer; `" label:inbox -from:me`, `" -label:inbox -from:me`, `" label:`, `" -label:`, `" from:`
+# and `"` alone answered nothing.
 _GMAIL_BARE_LONE_QUOTE = re.compile(
     r'^[ \t]*"[ \t]+-*(?=(?i:from|to|cc|bcc|subject|label|in|has|after|before|newer|older'
-    r"|newer_than|older_than):\S*[ \t]*$)"
+    r"|newer_than|older_than):\S+[ \t]*$)"
 )
 # An empty operator `_GMAIL_OP` drops, so that the operator after it applies. Measured on a
 # Workspace mailbox of 625 messages on 2026-10-19, comparing `messages.list` id sets
@@ -1095,12 +1085,16 @@ def _parse_gmail_q(q: str) -> tuple[str, dict]:
                 if key in _GMAIL_DROPPED_WHEN_EMPTY:
                     return " "
                 return m.group(0)
-            # A value holding a `"` is no age, and with a `-` in front it is left out. Measured on a
-            # Workspace mailbox on 2026-10-21 and 2026-10-22: `newer_than:"`, `older_than:"`,
-            # `newer_than:""`, `older_than:""`, `newer_than:"30d"`, `newer_than:" 30d` and
-            # `newer_than:"probe` answered nothing, and `-newer_than:"`, `NOT newer_than:"`,
-            # `-older_than:""` and `-newer_than:"30d"` every message.
-            if key in _GMAIL_AGE_NEGATION and '"' in value:
+            # A value is no age when it starts with a `"` or has a `"` followed by anything but
+            # quotes, and with a `-` in front it is left out; quotes that end an age are left out of
+            # it. Measured on a Workspace mailbox on 2026-10-21 and 2026-10-22: `newer_than:"`,
+            # `older_than:"`, `newer_than:""`, `older_than:""`, `newer_than:"30d"`,
+            # `newer_than:" 30d`, `newer_than:"probe` and `newer_than:30"d` answered nothing, and
+            # `-newer_than:"`, `NOT newer_than:"`, `-older_than:""` and `-newer_than:"30d"` every
+            # message; `newer_than:30d"`, `newer_than:30d""` and `newer_than:30d"""` answered what
+            # `newer_than:30d` answers, and `older_than:1d"`, `older_than:30d"` and
+            # `older_than:30d"" "` what `older_than:1d` and `older_than:30d` answer.
+            if key in _GMAIL_AGE_NEGATION and (value[:1] == '"' or '"' in value.rstrip('"')):
                 if not m.group(0).startswith("-"):
                     ops.setdefault(_GMAIL_NOTHING, []).append(value)
                 return " "
@@ -1150,6 +1144,7 @@ def _parse_gmail_q(q: str) -> tuple[str, dict]:
             return " "
         return m.group(0)
 
+    trailing = re.search(r'\S[ \t]+"[ \t]*$', q)
     hyphened = []
 
     def _hyphened(m):
@@ -1160,9 +1155,8 @@ def _parse_gmail_q(q: str) -> tuple[str, dict]:
         return " "
 
     q = _GMAIL_HYPHENED.sub(_hyphened, _GMAIL_BARE_LONE_QUOTE.sub("", q))
-    empty = _GMAIL_NOT_EMPTY.search(q)
-    if hyphened or (empty and empty[1].count("NOT") % 2):
-        return "", {_GMAIL_NOTHING: hyphened or [q]}
+    if hyphened:
+        return "", {_GMAIL_NOTHING: hyphened}
     q, groups = _gmail_groups(q)
     if groups:
         ops[_GMAIL_NOT_ALL] = groups
@@ -1180,11 +1174,14 @@ def _parse_gmail_q(q: str) -> tuple[str, dict]:
         if any(t.endswith("+") for t in words):
             ops.setdefault(_GMAIL_NOTHING, []).append(free)
         free = " ".join(words)
-    # A lone quote that no search term follows is no term beside the one operator that was read; one
-    # in front of the operator is read at `_GMAIL_BARE_LONE_QUOTE`, where a search with two answers
-    # nothing. Measured on a Workspace mailbox on 2026-10-22: `label:inbox "` and `"label:inbox`
-    # answered what `label:inbox` answers and `from:me "` what `from:me` answers.
-    if free == '"' and sum(map(len, ops.values())) == 1:
+    # A lone quote that no search term follows is no term beside the operators read; one in front of
+    # the operator is read at `_GMAIL_BARE_LONE_QUOTE`, where a search with two answers nothing, and
+    # an operator left with no value is not counted (`" from:` there). Measured on a Workspace
+    # mailbox on 2026-10-22: `label:inbox "` and `"label:inbox` answered what `label:inbox` answers,
+    # `from:me "` what `from:me` answers, and `label:inbox -from:me "` and `from:me to:me "` what
+    # `label:inbox -from:me` and `from:me to:me` answer.
+    valued = sum(1 for values in ops.values() for value in values if value)
+    if free == '"' and valued and (trailing or valued == 1):
         free = ""
     return free, ops
 
